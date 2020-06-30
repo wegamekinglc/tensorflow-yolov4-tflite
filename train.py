@@ -146,7 +146,7 @@ def main(_argv):
             writer.flush()
 
         if (epoch + 1) % 20 == 0:
-            file_name = f"./checkpoints/yolov4_{epoch}.h5"
+            file_name = f"./checkpoints/yolov4_{epoch + 1}.h5"
             model.save_weights(file_name)
             print(f"epoch {epoch + 1} saved at: {file_name}")
 
