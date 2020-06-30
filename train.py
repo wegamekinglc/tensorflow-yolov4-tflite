@@ -1,9 +1,9 @@
-from absl import app, flags, logging
+from absl import app, flags
 from absl.flags import FLAGS
 import os
 import shutil
 import tensorflow as tf
-from core.yolov4 import YOLOv4,YOLOv3, YOLOv3_tiny, decode, compute_loss, decode_train
+from core.yolov4 import YOLOv4, YOLOv3, YOLOv3_tiny, compute_loss, decode_train
 from core.dataset import Dataset
 from core.config import cfg
 import numpy as np
@@ -30,11 +30,10 @@ def main(_argv):
     global_steps = tf.Variable(1, trainable=False, dtype=tf.int64)
     warmup_steps = cfg.TRAIN.WARMUP_EPOCHS * steps_per_epoch
     total_steps = (first_stage_epochs + second_stage_epochs) * steps_per_epoch
-    # train_steps = (first_stage_epochs + second_stage_epochs) * steps_per_period
 
     input_layer = tf.keras.layers.Input([cfg.TRAIN.INPUT_SIZE, cfg.TRAIN.INPUT_SIZE, 3])
     NUM_CLASS = len(utils.read_class_names(cfg.YOLO.CLASSES))
-    STRIDES         = np.array(cfg.YOLO.STRIDES)
+    STRIDES = np.array(cfg.YOLO.STRIDES)
     IOU_LOSS_THRESH = cfg.YOLO.IOU_LOSS_THRESH
     XYSCALE = cfg.YOLO.XYSCALE
     ANCHORS = utils.get_anchors(cfg.YOLO.ANCHORS)
@@ -85,7 +84,6 @@ def main(_argv):
             model.load_weights(FLAGS.weights)
         print('Restoring weights from: %s ... ' % FLAGS.weights)
 
-
     optimizer = tf.keras.optimizers.Adam()
     if os.path.exists(logdir): shutil.rmtree(logdir)
     writer = tf.summary.create_file_writer(logdir)
@@ -98,7 +96,8 @@ def main(_argv):
             # optimizing process
             for i in range(len(freeze_layouts)):
                 conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
-                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS, IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
+                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS,
+                                          IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -129,15 +128,17 @@ def main(_argv):
                 tf.summary.scalar("loss/conf_loss", conf_loss, step=global_steps)
                 tf.summary.scalar("loss/prob_loss", prob_loss, step=global_steps)
             writer.flush()
+
     def test_step(image_data, target):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape():
             pred_result = model(image_data, training=True)
             giou_loss = conf_loss = prob_loss = 0
 
             # optimizing process
             for i in range(len(freeze_layouts)):
                 conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
-                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS, IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
+                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS,
+                                          IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
                 giou_loss += loss_items[0]
                 conf_loss += loss_items[1]
                 prob_loss += loss_items[2]
@@ -166,6 +167,7 @@ def main(_argv):
         for image_data, target in testset:
             test_step(image_data, target)
         model.save_weights("./checkpoints/yolov4")
+
 
 if __name__ == '__main__':
     try:
