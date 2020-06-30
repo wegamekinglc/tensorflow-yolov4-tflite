@@ -23,6 +23,13 @@ def main(_argv):
             tf.config.experimental.set_memory_growth(dev, True)
 
     strategy = tf.distribute.MirroredStrategy()
+    print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
+
+    train_set = Dataset(is_training=True, tiny=FLAGS.tiny)
+    train_set = tf.data.Dataset.from_generator(train_set,
+                                               output_types=(tf.float32, tf.float32, tf.float32, tf.float32, tf.float32,
+                                                             tf.float32, tf.float32)).prefetch(strategy.num_replicas_in_sync)
+    train_set = strategy.experimental_distribute_dataset(train_set)
 
     with strategy.scope():
         input_layer = tf.keras.layers.Input([cfg.TRAIN.INPUT_SIZE, cfg.TRAIN.INPUT_SIZE, 3])
@@ -79,76 +86,66 @@ def main(_argv):
             print('Restoring weights from: %s ... ' % FLAGS.weights)
         optimizer = tf.keras.optimizers.Adam()
 
-    trainset = Dataset(is_training=True, tiny=FLAGS.tiny)
+        logdir = "./data/log"
+        first_stage_epochs = cfg.TRAIN.FISRT_STAGE_EPOCHS
+        second_stage_epochs = cfg.TRAIN.SECOND_STAGE_EPOCHS
+        global_steps = 1
 
-    logdir = "./data/log"
-    isfreeze = False
-    first_stage_epochs = cfg.TRAIN.FISRT_STAGE_EPOCHS
-    second_stage_epochs = cfg.TRAIN.SECOND_STAGE_EPOCHS
-    global_steps = tf.Variable(1, trainable=False, dtype=tf.int64)
+        if os.path.exists(logdir):
+            shutil.rmtree(logdir)
+        writer = tf.summary.create_file_writer(logdir)
 
-    if os.path.exists(logdir):
-        shutil.rmtree(logdir)
-    writer = tf.summary.create_file_writer(logdir)
+        def train_step(image_data, small_target, medium_target, larget_target):
+            with tf.GradientTape() as tape:
+                pred_result = model(image_data, training=True)
+                giou_loss = conf_loss = prob_loss = 0
 
-    def train_step(image_data, target):
-        with tf.GradientTape() as tape:
-            pred_result = model(image_data, training=True)
-            giou_loss = conf_loss = prob_loss = 0
+                # optimizing process
+                all_targets = small_target, medium_target, larget_target
+                for i in range(len(freeze_layouts)):
+                    conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
+                    loss_items = compute_loss(pred, conv, all_targets[i][0], all_targets[i][1],
+                                              STRIDES=STRIDES, NUM_CLASS=NUM_CLASS,
+                                              IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
+                    giou_loss += loss_items[0]
+                    conf_loss += loss_items[1]
+                    prob_loss += loss_items[2]
 
-            # optimizing process
-            for i in range(len(freeze_layouts)):
-                conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
-                loss_items = compute_loss(pred, conv, target[i][0], target[i][1], STRIDES=STRIDES, NUM_CLASS=NUM_CLASS,
-                                          IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
-                giou_loss += loss_items[0]
-                conf_loss += loss_items[1]
-                prob_loss += loss_items[2]
+                total_loss = giou_loss + conf_loss + prob_loss
 
-            total_loss = giou_loss + conf_loss + prob_loss
+                gradients = tape.gradient(total_loss, model.trainable_variables)
+                optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+                return total_loss
 
-            gradients = tape.gradient(total_loss, model.trainable_variables)
-            optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+        @tf.function
+        def distributed_train_step(image_data, small_target, medium_target, larget_target):
+            per_replica_losses = strategy.run(train_step, args=(image_data, small_target, medium_target, larget_target))
+            total_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_losses,
+                                         axis=None)
             return total_loss
 
-    @tf.function
-    def distributed_train_step(image_data, target):
-        per_replica_losses = strategy.run(train_step, args=(image_data, target))
-        total_loss = strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses,
-                                     axis=None)
-        global_steps.assign_add(1)
-        return total_loss
+        for epoch in range(first_stage_epochs + second_stage_epochs):
+            for image_data, label_sbbox, sbboxes, label_mbbox, mbboxes, label_lbbox, lbboxes in train_set:
+                total_loss = distributed_train_step(image_data,
+                                                    (label_sbbox, sbboxes),
+                                                    (label_mbbox, mbboxes),
+                                                    (label_lbbox, lbboxes))
+                global_steps += 1
+                tf.print("=> STEP %4d   lr: %.6f   total_loss: %4.2f\t" % (global_steps,
+                                                                           optimizer.lr.numpy(),
+                                                                           total_loss),
+                         str(dt.datetime.now()))
 
-    for epoch in range(first_stage_epochs + second_stage_epochs):
-        if epoch < first_stage_epochs:
-            if not isfreeze:
-                isfreeze = True
-                for name in freeze_layouts:
-                    freeze = model.get_layer(name)
-                    freeze_all(freeze)
-        elif epoch >= first_stage_epochs:
-            if isfreeze:
-                isfreeze = False
-                for name in freeze_layouts:
-                    freeze = model.get_layer(name)
-                    unfreeze_all(freeze)
-        for image_data, target in trainset:
-            total_loss = distributed_train_step(image_data, target)
-            tf.print("=> STEP %4d   lr: %.6f   total_loss: %4.2f\t" % (global_steps,
-                                                                       optimizer.lr.numpy(),
-                                                                       total_loss),
-                     str(dt.datetime.now()))
+                # writing summary data
+                with writer.as_default():
+                    tf.summary.scalar("lr", optimizer.lr, step=global_steps)
+                    tf.summary.scalar("loss/total_loss", total_loss, step=global_steps)
+                writer.flush()
 
-            # writing summary data
-            with writer.as_default():
-                tf.summary.scalar("lr", optimizer.lr, step=global_steps)
-                tf.summary.scalar("loss/total_loss", total_loss, step=global_steps)
-            writer.flush()
-
-        if (epoch + 1) % 20 == 0:
-            file_name = f"./checkpoints/yolov4_{epoch + 1}.h5"
-            model.save_weights(file_name)
-            print(f"epoch {epoch + 1} saved at: {file_name}")
+            if (epoch + 1) % 20 == 0:
+                file_name = f"./checkpoints/yolov4_{epoch + 1}.h5"
+                model.save_weights(file_name)
+                print(f"epoch {epoch + 1} saved at: {file_name}")
 
 
 if __name__ == '__main__':
