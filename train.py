@@ -135,9 +135,9 @@ def main(_argv):
         for image_data, target in trainset:
             total_loss = distributed_train_step(image_data, target)
             tf.print("=> STEP %4d   lr: %.6f   total_loss: %4.2f\t" % (global_steps,
-                                                                     optimizer.lr.numpy(),
-                                                                     total_loss),
-                     dt.datetime.now())
+                                                                       optimizer.lr.numpy(),
+                                                                       total_loss),
+                     str(dt.datetime.now()))
 
             # writing summary data
             with writer.as_default():
