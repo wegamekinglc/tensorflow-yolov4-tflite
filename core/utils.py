@@ -5,13 +5,20 @@ import numpy as np
 import tensorflow as tf
 from core.config import cfg
 
-def load_weights_tiny(model, weights_file):
+def load_weights_tiny(model, weights_file, model_name):
+    if model_name == 'yolov3':
+        layer_size = 13
+        output_pos = [9, 12]
+    else:
+        layer_size = 21
+        output_pos = [17, 20]
     wf = open(weights_file, 'rb')
     major, minor, revision, seen, _ = np.fromfile(wf, dtype=np.int32, count=5)
 
     j = 0
-    for i in range(13):
+    for i in range(layer_size):
         conv_layer_name = 'conv2d_%d' % i if i > 0 else 'conv2d'
+        print(conv_layer_name)
         bn_layer_name = 'batch_normalization_%d' % j if j > 0 else 'batch_normalization'
 
         conv_layer = model.get_layer(conv_layer_name)
@@ -19,7 +26,7 @@ def load_weights_tiny(model, weights_file):
         k_size = conv_layer.kernel_size[0]
         in_dim = conv_layer.input_shape[-1]
 
-        if i not in [9, 12]:
+        if i not in output_pos:
             # darknet weights: [beta, gamma, mean, variance]
             bn_weights = np.fromfile(wf, dtype=np.float32, count=4 * filters)
             # tf weights: [gamma, beta, mean, variance]
@@ -35,7 +42,7 @@ def load_weights_tiny(model, weights_file):
         # tf shape (height, width, in_dim, out_dim)
         conv_weights = conv_weights.reshape(conv_shape).transpose([2, 3, 1, 0])
 
-        if i not in [9, 12]:
+        if i not in output_pos:
             conv_layer.set_weights([conv_weights])
             bn_layer.set_weights(bn_weights)
         else:
