@@ -166,7 +166,8 @@ def main(_argv):
             train_step(image_data, target)
         for image_data, target in testset:
             test_step(image_data, target)
-        model.save_weights("./checkpoints/yolov4")
+        if (epoch + 1) % 20 == 0:
+            model.save_weights(f"./checkpoints/yolov4_{epoch}.h5")
 
 
 if __name__ == '__main__':
