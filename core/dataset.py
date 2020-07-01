@@ -41,6 +41,24 @@ class Dataset:
         self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.batch_count = 0
 
+        self.images = self.load_image()
+
+    def load_image(self):
+        with open(self.annot_path, "r") as f:
+            txt = f.readlines()
+            image_path = []
+            if self.dataset_type == "converted_coco":
+                image_path = [line.strip().split()[0] for line in txt]
+            elif self.dataset_type == "yolo":
+                for line in txt:
+                    image_path.append(line.strip())
+        images = dict()
+        for i in image_path:
+            if not os.path.exists(i):
+                raise KeyError("%s does not exist ... " % i)
+            images[i] = cv2.imread(i)
+        return images
+
     def load_annotations(self):
         with open(self.annot_path, "r") as f:
             txt = f.readlines()
@@ -249,10 +267,7 @@ class Dataset:
 
     def parse_annotation(self, annotation):
         line = annotation.split()
-        image_path = line[0]
-        if not os.path.exists(image_path):
-            raise KeyError("%s does not exist ... " % image_path)
-        image = cv2.imread(image_path)
+        image = self.images[line[0]]
         if self.dataset_type == "converted_coco":
             bboxes = np.array(
                 [list(map(int, box.split(","))) for box in line[1:]]
