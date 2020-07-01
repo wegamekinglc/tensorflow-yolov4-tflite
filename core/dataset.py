@@ -54,8 +54,6 @@ class Dataset:
                     image_path.append(line.strip())
         images = dict()
         for i in image_path:
-            if not os.path.exists(i):
-                raise KeyError("%s does not exist ... " % i)
             images[i] = cv2.imread(i)
         return images
 
