@@ -282,18 +282,18 @@ class Dataset:
 
         if self.data_aug:
             image, bboxes = self.random_horizontal_flip(
-                np.copy(image), np.copy(bboxes)
+                image, bboxes
             )
-            image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
+            image, bboxes = self.random_crop(image, bboxes)
             image, bboxes = self.random_translate(
-                np.copy(image), np.copy(bboxes)
+                image, bboxes
             )
 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image, bboxes = utils.image_preprocess(
-            np.copy(image),
+            image,
             [self.train_input_size, self.train_input_size],
-            np.copy(bboxes),
+            bboxes,
         )
         return image, bboxes
 
