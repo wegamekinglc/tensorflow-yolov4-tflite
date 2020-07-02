@@ -9,7 +9,6 @@ from core.dataset import Dataset
 from core.config import cfg
 import numpy as np
 from core import utils
-from core.utils import freeze_all, unfreeze_all
 
 flags.DEFINE_string('model', 'yolov4', 'yolov4, yolov3 or yolov3-tiny')
 flags.DEFINE_string('weights', None, 'pretrained weights')

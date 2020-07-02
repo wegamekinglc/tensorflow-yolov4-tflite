@@ -28,7 +28,7 @@ __C.YOLO.IOU_LOSS_THRESH      = 0.5
 __C.TRAIN                     = edict()
 
 __C.TRAIN.ANNOT_PATH          = "./data/dataset/heads/20200507_mozi.txt"
-__C.TRAIN.BATCH_SIZE          = 64
+__C.TRAIN.BATCH_SIZE          = 16
 # __C.TRAIN.INPUT_SIZE            = [320, 352, 384, 416, 448, 480, 512, 544, 576, 608]
 __C.TRAIN.INPUT_SIZE          = 416
 __C.TRAIN.DATA_AUG            = True
