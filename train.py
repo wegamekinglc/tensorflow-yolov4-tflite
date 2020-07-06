@@ -11,14 +11,15 @@ import numpy as np
 from core import utils
 
 flags.DEFINE_string('model', 'yolov4', 'yolov4, yolov3')
-flags.DEFINE_string('weights', './data/yolov4.weights', 'pretrained weights')
+flags.DEFINE_string('weights', None, 'pretrained weights')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 
 
 def main(_argv):
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     if len(physical_devices) > 0:
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        for device in physical_devices:
+            tf.config.experimental.set_memory_growth(device, True)
 
     trainset = Dataset(FLAGS, is_training=True)
     testset = Dataset(FLAGS, is_training=False)
@@ -62,7 +63,7 @@ def main(_argv):
 
     model = tf.keras.Model(input_layer, bbox_tensors)
 
-    if FLAGS.weights == None:
+    if FLAGS.weights is None:
         print("Training from scratch")
     else:
         if FLAGS.weights.split(".")[len(FLAGS.weights.split(".")) - 1] == "weights":
@@ -115,6 +116,7 @@ def main(_argv):
                 tf.summary.scalar("loss/conf_loss", conf_loss, step=global_steps)
                 tf.summary.scalar("loss/prob_loss", prob_loss, step=global_steps)
             writer.flush()
+
     def test_step(image_data, target):
         with tf.GradientTape() as tape:
             pred_result = model(image_data, training=True)
@@ -140,18 +142,20 @@ def main(_argv):
                 isfreeze = True
                 for name in freeze_layers:
                     freeze = model.get_layer(name)
-                    freeze_all(freeze)
+                    utils.freeze_all(freeze)
         elif epoch >= first_stage_epochs:
             if isfreeze:
                 isfreeze = False
                 for name in freeze_layers:
                     freeze = model.get_layer(name)
-                    unfreeze_all(freeze)
+                    utils.unfreeze_all(freeze)
         for image_data, target in trainset:
             train_step(image_data, target)
         for image_data, target in testset:
             test_step(image_data, target)
-        model.save_weights("./checkpoints/yolov4")
+        if (epoch + 1) % 1 == 0:
+            model.save_weights("./checkpoints/v4/yolov4_{epoch+1}.hf")
+
 
 if __name__ == '__main__':
     try:
