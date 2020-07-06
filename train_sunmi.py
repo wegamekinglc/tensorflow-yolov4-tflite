@@ -21,6 +21,7 @@ flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 
 
 def main(_argv):
+
     strategy = tf.distribute.MirroredStrategy()
     print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
 

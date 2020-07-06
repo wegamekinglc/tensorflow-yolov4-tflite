@@ -293,7 +293,6 @@ class Dataset:
         )
         return image, bboxes
 
-
     def preprocess_true_boxes(self, bboxes):
         label = [
             np.zeros(
@@ -341,7 +340,7 @@ class Dataset:
                 )
                 anchors_xywh[:, 2:4] = self.anchors[i]
 
-                iou_scale = utils.bbox_iou(
+                iou_scale = utils.bbox_iou_cpu(
                     bbox_xywh_scaled[i][np.newaxis, :], anchors_xywh
                 )
                 iou.append(iou_scale)
