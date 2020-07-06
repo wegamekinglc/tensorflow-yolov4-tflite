@@ -12,7 +12,9 @@ from core.config import cfg
 class Dataset:
     """implement Dataset here"""
 
-    def __init__(self, is_training: bool, dataset_type: str = "converted_coco", tiny: bool = False):
+    def __init__(self, FLAGS, is_training: bool, dataset_type: str = "converted_coco"):
+        self.tiny = FLAGS.tiny
+        self.strides, self.anchors, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
         self.dataset_type = dataset_type
 
         self.annot_path = (
@@ -27,12 +29,8 @@ class Dataset:
         self.data_aug = cfg.TRAIN.DATA_AUG if is_training else cfg.TEST.DATA_AUG
 
         self.train_input_sizes = cfg.TRAIN.INPUT_SIZE
-        self.strides = (
-            np.array(cfg.YOLO.STRIDES_TINY) if tiny else np.array(cfg.YOLO.STRIDES)
-        )
         self.classes = utils.read_class_names(cfg.YOLO.CLASSES)
         self.num_classes = len(self.classes)
-        self.anchors = np.array(utils.get_anchors(cfg.YOLO.ANCHORS))
         self.anchor_per_scale = cfg.YOLO.ANCHOR_PER_SCALE
         self.max_bbox_per_scale = 150
 
@@ -295,36 +293,6 @@ class Dataset:
         )
         return image, bboxes
 
-    def bbox_iou(self, boxes1, boxes2):
-        boxes1 = np.array(boxes1)
-        boxes2 = np.array(boxes2)
-
-        boxes1_area = boxes1[..., 2] * boxes1[..., 3]
-        boxes2_area = boxes2[..., 2] * boxes2[..., 3]
-
-        boxes1 = np.concatenate(
-            [
-                boxes1[..., :2] - boxes1[..., 2:] * 0.5,
-                boxes1[..., :2] + boxes1[..., 2:] * 0.5,
-            ],
-            axis=-1,
-        )
-        boxes2 = np.concatenate(
-            [
-                boxes2[..., :2] - boxes2[..., 2:] * 0.5,
-                boxes2[..., :2] + boxes2[..., 2:] * 0.5,
-            ],
-            axis=-1,
-        )
-
-        left_up = np.maximum(boxes1[..., :2], boxes2[..., :2])
-        right_down = np.minimum(boxes1[..., 2:], boxes2[..., 2:])
-
-        inter_section = np.maximum(right_down - left_up, 0.0)
-        inter_area = inter_section[..., 0] * inter_section[..., 1]
-        union_area = boxes1_area + boxes2_area - inter_area
-
-        return inter_area / union_area
 
     def preprocess_true_boxes(self, bboxes):
         label = [
@@ -373,7 +341,7 @@ class Dataset:
                 )
                 anchors_xywh[:, 2:4] = self.anchors[i]
 
-                iou_scale = self.bbox_iou(
+                iou_scale = utils.bbox_iou(
                     bbox_xywh_scaled[i][np.newaxis, :], anchors_xywh
                 )
                 iou.append(iou_scale)
