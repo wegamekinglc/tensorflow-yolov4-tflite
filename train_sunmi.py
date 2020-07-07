@@ -131,7 +131,7 @@ def main(_argv):
                 # for image_data, target in test_set:
                 #     test_step(image_data, target)
                 if (epoch + 1) % 10 == 0:
-                    model.save_weights(f"./checkpoints/v4/yolov4_{epoch+1}.hf")
+                    model.save_weights(f"./checkpoints/v4/yolov4_{epoch+1}.h5")
 
 
 if __name__ == '__main__':

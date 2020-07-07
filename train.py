@@ -1,9 +1,14 @@
+import tensorflow as tf
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+if len(physical_devices) > 0:
+    for device in physical_devices:
+        tf.config.experimental.set_memory_growth(device, True)
+
 import datetime as dt
 from absl import app, flags
 from absl.flags import FLAGS
 import os
 import shutil
-import tensorflow as tf
 from core.yolov4 import YOLO, decode, compute_loss, decode_train
 from core.dataset import Dataset
 from core.config import cfg
@@ -16,11 +21,6 @@ flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 
 
 def main(_argv):
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    if len(physical_devices) > 0:
-        for device in physical_devices:
-            tf.config.experimental.set_memory_growth(device, True)
-
     trainset = Dataset(FLAGS, is_training=True)
     testset = Dataset(FLAGS, is_training=False)
     logdir = "./data/log"
@@ -78,6 +78,7 @@ def main(_argv):
     writer = tf.summary.create_file_writer(logdir)
 
     def train_step(image_data, target):
+
         with tf.GradientTape() as tape:
             pred_result = model(image_data, training=True)
             giou_loss = conf_loss = prob_loss = 0
@@ -149,12 +150,13 @@ def main(_argv):
                 for name in freeze_layers:
                     freeze = model.get_layer(name)
                     utils.unfreeze_all(freeze)
-        for image_data, target in trainset:
+        for image_data, label_sbbox, sbboxes, label_mbbox, mbboxes, label_lbbox, lbboxes in trainset:
+            target = (label_sbbox, sbboxes), (label_mbbox, mbboxes), (label_lbbox, lbboxes)
             train_step(image_data, target)
-        for image_data, target in testset:
-            test_step(image_data, target)
+        # for image_data, target in testset:
+        #     test_step(image_data, target)
         if (epoch + 1) % 1 == 0:
-            model.save_weights("./checkpoints/v4/yolov4_{epoch+1}.hf")
+            model.save_weights(f"./checkpoints/v3/yolov4_{epoch+1}.h5")
 
 
 if __name__ == '__main__':

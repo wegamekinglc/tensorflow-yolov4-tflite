@@ -15,13 +15,13 @@ from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
 flags.DEFINE_string('framework', 'tf', '(tf, tflite, trt')
-flags.DEFINE_string('weights', '/data/dev/zoe/tf2-yolov4/checkpoints/v3/yolov3_140.h5',
+flags.DEFINE_string('weights', '/data/dev/cheng/remote/tf2-yolov4/models/v4/yolov4-416',
                     'path to weights file')
 flags.DEFINE_integer('size', 416, 'resize images to')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
-flags.DEFINE_string('model', 'yolov3', 'yolov3 or yolov4')
+flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
 flags.DEFINE_string('image', '/data/dev/cheng/heads_data/20200521_coolrat/0521image_sample/1590045905_1590046155_3720_6_321.jpg', 'path to input image')
-flags.DEFINE_string('output', 'results/result.png', 'path to output image')
+flags.DEFINE_string('output', 'data/results/result.png', 'path to output image')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.25, 'score threshold')
 
@@ -82,7 +82,7 @@ def main(_argv):
     image = utils.draw_bbox(original_image, pred_bbox)
     # image = utils.draw_bbox(image_data*255, pred_bbox)
     image = Image.fromarray(image.astype(np.uint8))
-    image.show()
+    # image.show()
     image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
     cv2.imwrite(FLAGS.output, image)
 
