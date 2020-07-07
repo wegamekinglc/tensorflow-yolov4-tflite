@@ -72,7 +72,6 @@ def main(_argv):
             model.load_weights(FLAGS.weights)
         print('Restoring weights from: %s ... ' % FLAGS.weights)
 
-
     optimizer = tf.keras.optimizers.Adam()
     if os.path.exists(logdir): shutil.rmtree(logdir)
     writer = tf.summary.create_file_writer(logdir)
@@ -157,6 +156,7 @@ def main(_argv):
         #     test_step(image_data, target)
         if (epoch + 1) % 1 == 0:
             model.save_weights(f"./checkpoints/v3/yolov4_{epoch+1}.h5")
+            tf.print(f"./checkpoints/v3/yolov4_{epoch+1}.h5 is saved")
 
 
 if __name__ == '__main__':
