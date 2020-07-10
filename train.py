@@ -62,6 +62,7 @@ def main(_argv):
             bbox_tensors.append(bbox_tensor)
 
     model = tf.keras.Model(input_layer, bbox_tensors)
+    model.summary()
 
     if FLAGS.weights is None:
         print("Training from scratch")
@@ -76,6 +77,8 @@ def main(_argv):
     if os.path.exists(logdir): shutil.rmtree(logdir)
     writer = tf.summary.create_file_writer(logdir)
 
+    # define training step function
+    # @tf.function
     def train_step(image_data, target):
 
         with tf.GradientTape() as tape:
@@ -94,8 +97,8 @@ def main(_argv):
 
             gradients = tape.gradient(total_loss, model.trainable_variables)
             optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-            tf.print("=> STEP %4d   lr: %.6f   giou_loss: %4.2f   conf_loss: %4.2f   "
-                     "prob_loss: %4.2f   total_loss: %4.2f" % (global_steps, optimizer.lr.numpy(),
+            tf.print("=> STEP %4d/%4d   lr: %.6f   giou_loss: %4.2f   conf_loss: %4.2f   "
+                     "prob_loss: %4.2f   total_loss: %4.2f" % (global_steps, total_steps, optimizer.lr.numpy(),
                                                                giou_loss, conf_loss,
                                                                prob_loss, total_loss))
             # update learning rate
