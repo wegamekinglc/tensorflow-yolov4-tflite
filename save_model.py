@@ -6,9 +6,9 @@ import core.utils as utils
 from core.config import cfg
 
 flags.DEFINE_string('weights',
-                    '/data/dev/cheng/remote/tf2-yolov4/checkpoints/v3/yolov4_1.h5',
+                    '/data/dev/cheng/remote/tf2-yolov4/checkpoints/yolov4.weights',
                     'path to weights file')
-flags.DEFINE_string('output', '/data/dev/cheng/remote/tf2-yolov4/models/v4/yolov4-416', 'path to output')
+flags.DEFINE_string('output', '/data/dev/cheng/remote/tf2-yolov4/models/yolov4-416', 'path to output')
 flags.DEFINE_boolean('tiny', False, 'is yolo-tiny or not')
 flags.DEFINE_integer('input_size', 416, 'define input size of export model')
 flags.DEFINE_float('score_thres', 0.2, 'define score threshold')

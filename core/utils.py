@@ -68,7 +68,7 @@ def load_weights(model, weights_file, model_name='yolov4', is_tiny=False):
         else:
             conv_layer.set_weights([conv_weights, conv_bias])
 
-    # assert len(wf.read()) == 0, 'failed to read all data'
+    assert len(wf.read()) == 0, 'failed to read all data'
     wf.close()
 
 
@@ -161,6 +161,7 @@ def draw_bbox(image, bboxes, classes=read_class_names(cfg.YOLO.CLASSES), show_la
                         fontScale, (0, 0, 0), bbox_thick // 2, lineType=cv2.LINE_AA)
     return image
 
+
 def bbox_iou_cpu(bboxes1, bboxes2):
     """
     @param bboxes1: (a, b, ..., 4)
@@ -236,7 +237,7 @@ def bbox_iou(bboxes1, bboxes2):
 
     union_area = bboxes1_area + bboxes2_area - inter_area
 
-    iou = tf.math.divide_no_nan(inter_area, union_area)
+    iou = inter_area / union_area
 
     return iou
 

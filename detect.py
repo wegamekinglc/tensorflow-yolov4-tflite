@@ -15,12 +15,12 @@ from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
 flags.DEFINE_string('framework', 'tf', '(tf, tflite, trt')
-flags.DEFINE_string('weights', '/data/dev/cheng/remote/tf2-yolov4/checkpoints/v3/yolov4_1.h5',
+flags.DEFINE_string('weights', '/data/dev/cheng/remote/tf2-yolov4/models/yolov4-416',
                     'path to weights file')
 flags.DEFINE_integer('size', 416, 'resize images to')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
-flags.DEFINE_string('image', '/data/dev/cheng/heads_data/20200521_coolrat/0521image_sample/1590045905_1590046155_3720_6_321.jpg', 'path to input image')
+flags.DEFINE_string('image', './data/kite.jpg', 'path to input image')
 flags.DEFINE_string('output', 'data/results/result.png', 'path to output image')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.25, 'score threshold')

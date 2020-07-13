@@ -152,14 +152,13 @@ def main(_argv):
                 for name in freeze_layers:
                     freeze = model.get_layer(name)
                     utils.unfreeze_all(freeze)
-        for image_data, label_sbbox, sbboxes, label_mbbox, mbboxes, label_lbbox, lbboxes in trainset:
-            target = (label_sbbox, sbboxes), (label_mbbox, mbboxes), (label_lbbox, lbboxes)
+        for image_data, target in trainset:
             train_step(image_data, target)
         # for image_data, target in testset:
         #     test_step(image_data, target)
         if (epoch + 1) % 1 == 0:
-            model.save_weights(f"./checkpoints/v3/yolov4_{epoch+1}.h5")
-            tf.print(f"./checkpoints/v3/yolov4_{epoch+1}.h5 is saved")
+            model.save_weights(f"./checkpoints/v4/yolov4_{epoch+1}.h5")
+            tf.print(f"./checkpoints/v4/yolov4_{epoch+1}.h5 is saved")
 
 
 if __name__ == '__main__':

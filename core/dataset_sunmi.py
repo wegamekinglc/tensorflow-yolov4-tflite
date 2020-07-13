@@ -5,12 +5,11 @@ import os
 import cv2
 import random
 import numpy as np
-import tensorflow as tf
 import core.utils as utils
 from core.config import cfg
 
 
-class Dataset(object):
+class Dataset:
     """implement Dataset here"""
 
     def __init__(self, FLAGS, is_training: bool, dataset_type: str = "converted_coco"):
@@ -37,8 +36,24 @@ class Dataset(object):
 
         self.annotations = self.load_annotations()
         self.num_samples = len(self.annotations)
-        self.num_batchs = int(np.ceil(self.num_samples / self.batch_size))
+        self.num_batches = int(np.ceil(self.num_samples / self.batch_size))
         self.batch_count = 0
+
+        self.images = self.load_image()
+
+    def load_image(self):
+        with open(self.annot_path, "r") as f:
+            txt = f.readlines()
+            image_path = []
+            if self.dataset_type == "converted_coco":
+                image_path = [line.strip().split()[0] for line in txt]
+            elif self.dataset_type == "yolo":
+                for line in txt:
+                    image_path.append(line.strip())
+        images = dict()
+        for i in image_path:
+            images[i] = cv2.imread(i)
+        return images
 
     def load_annotations(self):
         with open(self.annot_path, "r") as f:
@@ -77,108 +92,103 @@ class Dataset(object):
         np.random.shuffle(annotations)
         return annotations
 
+    def __call__(self):
+        return self
+
     def __iter__(self):
         return self
 
     def __next__(self):
-        with tf.device("/cpu:0"):
-            # self.train_input_size = random.choice(self.train_input_sizes)
-            self.train_input_size = cfg.TRAIN.INPUT_SIZE
-            self.train_output_sizes = self.train_input_size // self.strides
+        # self.train_input_size = random.choice(self.train_input_sizes)
+        self.train_input_size = cfg.TRAIN.INPUT_SIZE
+        self.train_output_sizes = self.train_input_size // self.strides
 
-            batch_image = np.zeros(
+        batch_image = np.zeros(
+            (
+                self.batch_size,
+                self.train_input_size,
+                self.train_input_size,
+                3,
+            ),
+            dtype=np.float32,
+        )
+
+        batch_label_sbbox = np.zeros(
+            (
+                self.batch_size,
+                self.train_output_sizes[0],
+                self.train_output_sizes[0],
+                self.anchor_per_scale,
+                5 + self.num_classes,
+            ),
+            dtype=np.float32,
+        )
+        batch_label_mbbox = np.zeros(
+            (
+                self.batch_size,
+                self.train_output_sizes[1],
+                self.train_output_sizes[1],
+                self.anchor_per_scale,
+                5 + self.num_classes,
+            ),
+            dtype=np.float32,
+        )
+        batch_label_lbbox = np.zeros(
+            (
+                self.batch_size,
+                self.train_output_sizes[2],
+                self.train_output_sizes[2],
+                self.anchor_per_scale,
+                5 + self.num_classes,
+            ),
+            dtype=np.float32,
+        )
+
+        batch_sbboxes = np.zeros(
+            (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
+        )
+        batch_mbboxes = np.zeros(
+            (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
+        )
+        batch_lbboxes = np.zeros(
+            (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
+        )
+
+        num = 0
+        if self.batch_count < self.num_batches:
+            while num < self.batch_size:
+                index = self.batch_count * self.batch_size + num
+                if index >= self.num_samples:
+                    index -= self.num_samples
+                annotation = self.annotations[index]
+                image, bboxes = self.parse_annotation(annotation)
                 (
-                    self.batch_size,
-                    self.train_input_size,
-                    self.train_input_size,
-                    3,
-                ),
-                dtype=np.float32,
-            )
+                    label_sbbox,
+                    label_mbbox,
+                    label_lbbox,
+                    sbboxes,
+                    mbboxes,
+                    lbboxes,
+                ) = self.preprocess_true_boxes(bboxes)
 
-            batch_label_sbbox = np.zeros(
-                (
-                    self.batch_size,
-                    self.train_output_sizes[0],
-                    self.train_output_sizes[0],
-                    self.anchor_per_scale,
-                    5 + self.num_classes,
-                ),
-                dtype=np.float32,
-            )
-            batch_label_mbbox = np.zeros(
-                (
-                    self.batch_size,
-                    self.train_output_sizes[1],
-                    self.train_output_sizes[1],
-                    self.anchor_per_scale,
-                    5 + self.num_classes,
-                ),
-                dtype=np.float32,
-            )
-            batch_label_lbbox = np.zeros(
-                (
-                    self.batch_size,
-                    self.train_output_sizes[2],
-                    self.train_output_sizes[2],
-                    self.anchor_per_scale,
-                    5 + self.num_classes,
-                ),
-                dtype=np.float32,
-            )
+                batch_image[num, :, :, :] = image
+                batch_label_sbbox[num, :, :, :, :] = label_sbbox
+                batch_label_mbbox[num, :, :, :, :] = label_mbbox
+                batch_label_lbbox[num, :, :, :, :] = label_lbbox
+                batch_sbboxes[num, :, :] = sbboxes
+                batch_mbboxes[num, :, :] = mbboxes
+                batch_lbboxes[num, :, :] = lbboxes
+                num += 1
+            self.batch_count += 1
 
-            batch_sbboxes = np.zeros(
-                (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
-            )
-            batch_mbboxes = np.zeros(
-                (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
-            )
-            batch_lbboxes = np.zeros(
-                (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
-            )
-
-            num = 0
-            if self.batch_count < self.num_batchs:
-                while num < self.batch_size:
-                    index = self.batch_count * self.batch_size + num
-                    if index >= self.num_samples:
-                        index -= self.num_samples
-                    annotation = self.annotations[index]
-                    image, bboxes = self.parse_annotation(annotation)
-                    (
-                        label_sbbox,
-                        label_mbbox,
-                        label_lbbox,
-                        sbboxes,
-                        mbboxes,
-                        lbboxes,
-                    ) = self.preprocess_true_boxes(bboxes)
-
-                    batch_image[num, :, :, :] = image
-                    batch_label_sbbox[num, :, :, :, :] = label_sbbox
-                    batch_label_mbbox[num, :, :, :, :] = label_mbbox
-                    batch_label_lbbox[num, :, :, :, :] = label_lbbox
-                    batch_sbboxes[num, :, :] = sbboxes
-                    batch_mbboxes[num, :, :] = mbboxes
-                    batch_lbboxes[num, :, :] = lbboxes
-                    num += 1
-                self.batch_count += 1
-                batch_smaller_target = batch_label_sbbox, batch_sbboxes
-                batch_medium_target = batch_label_mbbox, batch_mbboxes
-                batch_larger_target = batch_label_lbbox, batch_lbboxes
-
-                return (
-                    batch_image,
-                    (
-                        batch_smaller_target,
-                        batch_medium_target,
-                        batch_larger_target,
-                    ),
-                )
-            else:
-                self.batch_count = 0
-                np.random.shuffle(self.annotations)
-                raise StopIteration
+            return batch_image, \
+                batch_label_sbbox, batch_sbboxes, \
+                batch_label_mbbox, batch_mbboxes, \
+                batch_label_lbbox, batch_lbboxes
+        else:
+            self.batch_count = 0
+            np.random.shuffle(self.annotations)
+            raise StopIteration
 
     def random_horizontal_flip(self, image, bboxes):
         if random.random() < 0.5:
@@ -253,10 +263,7 @@ class Dataset(object):
 
     def parse_annotation(self, annotation):
         line = annotation.split()
-        image_path = line[0]
-        if not os.path.exists(image_path):
-            raise KeyError("%s does not exist ... " % image_path)
-        image = cv2.imread(image_path)
+        image = self.images[line[0]]
         if self.dataset_type == "converted_coco":
             bboxes = np.array(
                 [list(map(int, box.split(","))) for box in line[1:]]
@@ -271,21 +278,20 @@ class Dataset(object):
 
         if self.data_aug:
             image, bboxes = self.random_horizontal_flip(
-                np.copy(image), np.copy(bboxes)
+                image, bboxes
             )
-            image, bboxes = self.random_crop(np.copy(image), np.copy(bboxes))
+            image, bboxes = self.random_crop(image, bboxes)
             image, bboxes = self.random_translate(
-                np.copy(image), np.copy(bboxes)
+                image, bboxes
             )
 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image, bboxes = utils.image_preprocess(
-            np.copy(image),
+            image,
             [self.train_input_size, self.train_input_size],
-            np.copy(bboxes),
+            bboxes,
         )
         return image, bboxes
-
 
     def preprocess_true_boxes(self, bboxes):
         label = [
@@ -334,7 +340,7 @@ class Dataset(object):
                 )
                 anchors_xywh[:, 2:4] = self.anchors[i]
 
-                iou_scale = utils.bbox_iou(
+                iou_scale = utils.bbox_iou_cpu(
                     bbox_xywh_scaled[i][np.newaxis, :], anchors_xywh
                 )
                 iou.append(iou_scale)
@@ -379,4 +385,4 @@ class Dataset(object):
         return label_sbbox, label_mbbox, label_lbbox, sbboxes, mbboxes, lbboxes
 
     def __len__(self):
-        return self.num_batchs
+        return self.num_batches

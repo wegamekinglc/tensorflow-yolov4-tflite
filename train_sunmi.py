@@ -10,7 +10,7 @@ from absl.flags import FLAGS
 import os
 import shutil
 from core.yolov4 import YOLO, decode, compute_loss, decode_train
-from core.dataset import Dataset
+from core.dataset_sunmi import Dataset
 from core.config import cfg
 import numpy as np
 from core import utils
@@ -31,6 +31,8 @@ def main(_argv):
                                                              tf.float32, tf.float32)).prefetch(
         strategy.num_replicas_in_sync)
     train_set = strategy.experimental_distribute_dataset(train_set)
+
+    test_set = Dataset(FLAGS, is_training=False)
 
     logdir = "./data/log"
     first_stage_epochs = cfg.TRAIN.FISRT_STAGE_EPOCHS
@@ -67,6 +69,7 @@ def main(_argv):
                 bbox_tensors.append(bbox_tensor)
 
         model = tf.keras.Model(input_layer, bbox_tensors)
+        model.summary()
 
         if FLAGS.weights is None:
             print("Training from scratch")
@@ -110,6 +113,27 @@ def main(_argv):
                                          axis=None)
             return total_loss
 
+        def test_step(image_data, small_target, medium_target, larget_target):
+            with tf.GradientTape() as tape:
+                pred_result = model(image_data, training=True)
+                giou_loss = conf_loss = prob_loss = 0
+
+                # optimizing process
+                all_targets = small_target, medium_target, larget_target
+                for i in range(len(freeze_layers)):
+                    conv, pred = pred_result[i * 2], pred_result[i * 2 + 1]
+                    loss_items = compute_loss(pred, conv, all_targets[i][0], all_targets[i][1], STRIDES=STRIDES,
+                                              NUM_CLASS=NUM_CLASS, IOU_LOSS_THRESH=IOU_LOSS_THRESH, i=i)
+                    giou_loss += loss_items[0]
+                    conf_loss += loss_items[1]
+                    prob_loss += loss_items[2]
+
+                total_loss = giou_loss + conf_loss + prob_loss
+
+                tf.print("=> TEST STEP %4d   giou_loss: %4.2f   conf_loss: %4.2f   "
+                         "prob_loss: %4.2f   total_loss: %4.2f" % (global_steps, giou_loss, conf_loss,
+                                                                   prob_loss, total_loss))
+
         for epoch in range(first_stage_epochs + second_stage_epochs):
             for image_data, label_sbbox, sbboxes, label_mbbox, mbboxes, label_lbbox, lbboxes in train_set:
                 total_loss = distributed_train_step(image_data,
@@ -128,10 +152,12 @@ def main(_argv):
                     tf.summary.scalar("loss/total_loss", total_loss, step=global_steps)
                 writer.flush()
 
-                # for image_data, target in test_set:
-                #     test_step(image_data, target)
-                if (epoch + 1) % 10 == 0:
-                    model.save_weights(f"./checkpoints/v4/yolov4_{epoch+1}.h5")
+            for image_data, label_sbbox, sbboxes, label_mbbox, mbboxes, label_lbbox, lbboxes in test_set:
+                test_step(image_data, (label_sbbox, sbboxes),
+                                      (label_mbbox, mbboxes),
+                                      (label_lbbox, lbboxes))
+            if (epoch + 1) % 10 == 0:
+                model.save_weights(f"./checkpoints/v4/yolov4_{epoch+1}")
 
 
 if __name__ == '__main__':
