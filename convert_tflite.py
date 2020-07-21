@@ -8,10 +8,11 @@ import core.utils as utils
 import os
 from core.config import cfg
 
-flags.DEFINE_string('weights', './checkpoints/yolov4-416', 'path to weights file')
-flags.DEFINE_string('output', './checkpoints/yolov4-416-fp32.tflite', 'path to output')
+flags.DEFINE_string('weights', '/data/dev/cheng/remote/tf2-yolov4/models/tmp/yolov4-416', 'path to weights file')
+flags.DEFINE_string('output', '/data/dev/cheng/remote/tf2-yolov4/models/yolov4-416-fp16.tflite', 'path to output')
 flags.DEFINE_integer('input_size', 416, 'path to output')
-flags.DEFINE_string('quantize_mode', 'float32', 'quantize mode (int8, float16, float32)')
+flags.DEFINE_string('image_path', 'data/kite.jpg', 'path to output')
+flags.DEFINE_string('quantize_mode', 'float16', 'quantize mode (int8, float16, float32)')
 flags.DEFINE_string('dataset', "/Volumes/Elements/data/coco_dataset/coco/5k.txt", 'path to dataset')
 
 def representative_data_gen():
@@ -43,7 +44,8 @@ def save_tflite():
     converter.representative_dataset = representative_data_gen
 
   tflite_model = converter.convert()
-  open(FLAGS.output, 'wb').write(tflite_model)
+  with open(FLAGS.output, 'wb') as f_handle:
+    f_handle.write(tflite_model)
 
   logging.info("model saved to: {}".format(FLAGS.output))
 
@@ -53,19 +55,25 @@ def demo():
   logging.info('tflite model loaded')
 
   input_details = interpreter.get_input_details()
-  print(input_details)
   output_details = interpreter.get_output_details()
-  print(output_details)
 
-  input_shape = input_details[0]['shape']
+  input_index = input_details[0]["index"]
+  output_index = output_details[0]["index"]
 
-  input_data = np.array(np.random.random_sample(input_shape), dtype=np.float32)
+  original_image = cv2.imread(FLAGS.image_path)
+  original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
 
-  interpreter.set_tensor(input_details[0]['index'], input_data)
-  interpreter.invoke()
-  output_data = [interpreter.get_tensor(output_details[i]['index']) for i in range(len(output_details))]
+  image_data = cv2.resize(original_image, (FLAGS.input_size, FLAGS.input_size))
+  input_data = image_data / 255.
+  input_data = np.expand_dims(input_data, axis=0).astype(dtype=np.float32)
 
-  print(output_data)
+  logging.info('tflite model inference started')
+  for i in range(50):
+    interpreter.set_tensor(input_index, input_data)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_index)
+  logging.info('tflite model inference finished')
+
 
 def main(_argv):
   save_tflite()
