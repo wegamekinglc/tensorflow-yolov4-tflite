@@ -1,4 +1,5 @@
 import tensorflow as tf
+import json
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 if len(physical_devices) > 0:
@@ -78,6 +79,10 @@ def _pred(infer, file_name, original_image, images_data, input_details=None, out
     # image.show()
     image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
     cv2.imwrite(os.path.join(FLAGS.output, file_name), image)
+    num_detect = pred_bbox[3][0]
+    scores = pred_bbox[1][0]
+    bboxs = pred_bbox[0][0]
+    return num_detect, scores, bboxs
 
 
 def _generate_data(file_path):
@@ -110,10 +115,15 @@ def main(_argv):
                     "/data/dev/cheng/heads_data/20200521_coolrat/0521image_sample"]
     for source_root in source_roots:
         img_files = Path(source_root).glob("*.jpg")
+        res = []
         for file in img_files:
             file_name, original_image, images_data = _generate_data(file.as_posix())
-            _pred(infer, file_name, original_image, images_data)
-            print(file_name)
+            num_detect, scores, bboxs = _pred(infer, file_name, original_image, images_data)
+            for i in range(num_detect):
+                res.append(dict(image_id=file_name, category_id=0, bbox=bboxs[i].tolist(), score=scores[i].item()))
+        json_file = '/data/dev/cheng/heads_data/' + source_root.split('/')[5] + '.json'
+        with open(json_file, "w") as f:
+            json.dump(res, f)
 
 
 if __name__ == '__main__':
