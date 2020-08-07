@@ -7,7 +7,7 @@
 ## 环境
 
 * 开发机: `172.16.0.174`
-* 代码地址: '/data/dev/cheng/remote/tf2-yolov4'
+* 代码地址: `/data/dev/cheng/remote/tf2-yolov4`
 * 数据地址: 
     * 训练数据: `/data/dev/zoe/heads_data/v0.1.0`
     * 测试数据: `/data/dev/cheng/heads_data`
