@@ -74,9 +74,9 @@ def _pred(infer, file_name, original_image, images_data, input_details=None, out
     )
     pred_bbox = [boxes.numpy(), scores.numpy(), classes.numpy(), valid_detections.numpy()]
     image = utils.draw_bbox(original_image, pred_bbox)
-    # image = utils.draw_bbox(image_data*255, pred_bbox)
+    #image = utils.draw_bbox(image_data*255, pred_bbox)
     image = Image.fromarray(image.astype(np.uint8))
-    # image.show()
+    #image.show()
     image = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
     cv2.imwrite(os.path.join(FLAGS.output, file_name), image)
     num_detect = pred_bbox[3][0]
@@ -120,7 +120,10 @@ def main(_argv):
             file_name, original_image, images_data = _generate_data(file.as_posix())
             num_detect, scores, bboxs = _pred(infer, file_name, original_image, images_data)
             for i in range(num_detect):
-                res.append(dict(image_id=file_name, category_id=0, bbox=bboxs[i].tolist(), score=scores[i].item()))
+                bbox = bboxs[i].tolist()
+                bbox[0], bbox[1] = bbox[1], bbox[0]
+                bbox[2], bbox[3] = bbox[3], bbox[2]
+                res.append(dict(image_id=file_name, category_id=0, bbox=bbox, score=scores[i].item()))
         json_file = '/data/dev/cheng/heads_data/' + source_root.split('/')[5] + '.json'
         with open(json_file, "w") as f:
             json.dump(res, f)
