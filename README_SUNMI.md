@@ -19,7 +19,7 @@
 (handsonml2) $ python train_sunmi.py
 ```
 
-脚本会在`/data/dev/cheng/remote/tf2-yolov4/checkpoints/v4`目录下，每10个保存模型的权重：
+脚本会在`/data/dev/cheng/remote/tf2-yolov4/checkpoints/v4`目录下，每10个epoch保存模型的权重：
 
 ```bash
 $ ls ./checkpoints/v4
